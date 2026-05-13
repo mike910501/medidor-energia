@@ -12,7 +12,6 @@
 <style>
   * { -webkit-tap-highlight-color: transparent; }
   html { scroll-behavior: smooth; }
-
   body {
     font-family: 'Inter', sans-serif;
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
@@ -23,18 +22,17 @@
     padding-bottom: env(safe-area-inset-bottom);
     -webkit-font-smoothing: antialiased;
   }
-
   .glass {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
-
   .glow-blue   { box-shadow: 0 0 20px rgba(59, 130, 246, 0.25); }
   .glow-green  { box-shadow: 0 0 20px rgba(34, 197, 94, 0.25); }
   .glow-yellow { box-shadow: 0 0 20px rgba(234, 179, 8, 0.25); }
   .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25); }
+  .glow-pink   { box-shadow: 0 0 30px rgba(236, 72, 153, 0.4); }
 
   .pulse-dot {
     width: 8px; height: 8px; border-radius: 50%;
@@ -46,7 +44,6 @@
     50%      { opacity: 0.5; transform: scale(0.9); }
   }
 
-  /* Texto que escala con el viewport */
   .text-value     { font-size: clamp(1.75rem, 7vw, 2.75rem); line-height: 1; font-weight: 700; }
   .text-unit      { font-size: clamp(0.875rem, 3vw, 1.125rem); }
   .text-label     { font-size: clamp(0.7rem, 2.5vw, 0.8rem); }
@@ -61,6 +58,49 @@
   .chart-container { height: 220px; }
   @media (min-width: 640px) { .chart-container { height: 280px; } }
   @media (min-width: 1024px) { .chart-container { height: 340px; } }
+
+  /* Botón Analizar */
+  .btn-ai {
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #3b82f6 100%);
+    transition: all 0.3s ease;
+  }
+  .btn-ai:hover { transform: scale(1.02); box-shadow: 0 0 30px rgba(236, 72, 153, 0.5); }
+  .btn-ai:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* Loader */
+  .loader {
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top: 3px solid #ec4899;
+    border-radius: 50%;
+    width: 32px; height: 32px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  /* Tooltip */
+  .tooltip-container { position: relative; cursor: help; }
+  .tooltip-text {
+    visibility: hidden; opacity: 0;
+    position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.98);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 10px 14px; border-radius: 10px;
+    width: max-content; max-width: 280px;
+    font-size: 0.75rem; line-height: 1.4;
+    z-index: 50;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    text-align: left; font-weight: 400;
+  }
+  .tooltip-container:hover .tooltip-text,
+  .tooltip-container:focus .tooltip-text { visibility: visible; opacity: 1; }
+
+  /* Animación entrada de respuesta IA */
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .ai-response { animation: slideUp 0.4s ease forwards; }
 </style>
 </head>
 <body>
@@ -85,42 +125,61 @@
     <!-- CARDS -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-8">
 
-      <div class="glass glow-blue card-hover rounded-2xl p-4 sm:p-5">
+      <div class="glass glow-blue card-hover rounded-2xl p-4 sm:p-5 tooltip-container">
         <div class="flex items-center justify-between mb-2 sm:mb-3">
-          <span class="text-slate-400 text-label uppercase tracking-wide">Potencia</span>
+          <span class="text-slate-400 text-label uppercase tracking-wide">Potencia ⓘ</span>
           <span class="text-lg sm:text-xl opacity-80">⚡</span>
         </div>
         <div class="flex items-baseline gap-1">
           <span id="potencia" class="text-value text-blue-400">0</span>
           <span class="text-slate-400 text-unit">W</span>
         </div>
+        <div class="tooltip-text">
+          <strong class="text-blue-400">Potencia (Watts)</strong><br>
+          Cuánta energía consume el aparato AHORA.<br>
+          Se calcula: <br>
+          <code class="text-yellow-300">P = I × V</code><br>
+          donde I = corriente medida y V = 120V (red Colombia)
+        </div>
       </div>
 
-      <div class="glass glow-green card-hover rounded-2xl p-4 sm:p-5">
+      <div class="glass glow-green card-hover rounded-2xl p-4 sm:p-5 tooltip-container">
         <div class="flex items-center justify-between mb-2 sm:mb-3">
-          <span class="text-slate-400 text-label uppercase tracking-wide">Corriente</span>
+          <span class="text-slate-400 text-label uppercase tracking-wide">Corriente ⓘ</span>
           <span class="text-lg sm:text-xl opacity-80">🔌</span>
         </div>
         <div class="flex items-baseline gap-1">
           <span id="corriente" class="text-value text-green-400">0.00</span>
           <span class="text-slate-400 text-unit">A</span>
         </div>
+        <div class="tooltip-text">
+          <strong class="text-green-400">Corriente (Amperios)</strong><br>
+          Cantidad de electrones por segundo que pasan por el cable.
+          El sensor SCT-013 mide el campo magnético del cable
+          y lo convierte en corriente medible.
+        </div>
       </div>
 
-      <div class="glass glow-yellow card-hover rounded-2xl p-4 sm:p-5">
+      <div class="glass glow-yellow card-hover rounded-2xl p-4 sm:p-5 tooltip-container">
         <div class="flex items-center justify-between mb-2 sm:mb-3">
-          <span class="text-slate-400 text-label uppercase tracking-wide">Energía</span>
+          <span class="text-slate-400 text-label uppercase tracking-wide">Energía ⓘ</span>
           <span class="text-lg sm:text-xl opacity-80">🔋</span>
         </div>
         <div class="flex items-baseline gap-1">
           <span id="energia" class="text-value text-yellow-400">0.000</span>
           <span class="text-slate-400 text-unit">kWh</span>
         </div>
+        <div class="tooltip-text">
+          <strong class="text-yellow-400">Energía (kWh)</strong><br>
+          Total acumulado desde que se enciende el medidor.<br>
+          <code class="text-yellow-300">kWh = (W ÷ 1000) × horas</code><br>
+          Ejemplo: 1000W durante 1 hora = 1 kWh
+        </div>
       </div>
 
-      <div class="glass glow-purple card-hover rounded-2xl p-4 sm:p-5">
+      <div class="glass glow-purple card-hover rounded-2xl p-4 sm:p-5 tooltip-container">
         <div class="flex items-center justify-between mb-2 sm:mb-3">
-          <span class="text-slate-400 text-label uppercase tracking-wide">Costo</span>
+          <span class="text-slate-400 text-label uppercase tracking-wide">Costo ⓘ</span>
           <span class="text-lg sm:text-xl opacity-80">💰</span>
         </div>
         <div class="flex items-baseline gap-1">
@@ -128,6 +187,37 @@
           <span id="costo" class="text-value text-purple-400">0</span>
           <span class="text-slate-400 text-unit ml-0.5">COP</span>
         </div>
+        <div class="tooltip-text">
+          <strong class="text-purple-400">Costo (COP)</strong><br>
+          Cuánto te está costando esa energía.<br>
+          <code class="text-yellow-300">$ = kWh × $800</code><br>
+          Tarifa Enel Bogotá: aprox $800 pesos por kWh
+        </div>
+      </div>
+    </div>
+
+    <!-- ANÁLISIS IA -->
+    <div class="glass glow-pink rounded-2xl p-4 sm:p-6 mb-5 sm:mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-3">
+        <div>
+          <h2 class="text-base sm:text-xl font-semibold flex items-center gap-2">
+            <span>🤖</span> Análisis con Inteligencia Artificial
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1">
+            DeepSeek analiza tu consumo y te explica qué está pasando
+          </p>
+        </div>
+        <button id="btnAnalizar" onclick="analizarConIA()"
+                class="btn-ai px-5 py-3 rounded-xl font-semibold text-sm sm:text-base whitespace-nowrap">
+          🧠 Analizar consumo
+        </button>
+      </div>
+      <div id="aiResponseBox" class="hidden bg-slate-900/50 rounded-xl p-4 mt-3 ai-response">
+        <div id="aiLoading" class="hidden flex items-center gap-3">
+          <div class="loader"></div>
+          <span class="text-slate-300 text-sm">DeepSeek está analizando tus datos...</span>
+        </div>
+        <div id="aiContent" class="text-slate-200 text-sm sm:text-base leading-relaxed whitespace-pre-wrap"></div>
       </div>
     </div>
 
@@ -142,6 +232,14 @@
       </div>
     </div>
 
+    <!-- DESCRIPCIONES DINÁMICAS basadas en datos reales -->
+    <div class="glass rounded-2xl p-4 sm:p-6 mb-5 sm:mb-8">
+      <h3 class="text-base sm:text-lg font-semibold mb-3">📊 ¿Qué significan estos números?</h3>
+      <div id="descripcionesDinamicas" class="space-y-3 text-xs sm:text-sm text-slate-300">
+        <p class="text-slate-400 italic">Calculando con base en tus datos actuales...</p>
+      </div>
+    </div>
+
     <!-- INFO FOOTER -->
     <div class="glass rounded-2xl p-4 sm:p-6">
       <h3 class="text-base sm:text-lg font-semibold mb-3">Información del Proyecto</h3>
@@ -152,7 +250,7 @@
         </div>
         <div>
           <span class="text-slate-400 block mb-1 text-label uppercase tracking-wide">Tarifa</span>
-          <span id="tarifa">$800 COP/kWh</span>
+          <span>$800 COP/kWh</span>
         </div>
         <div>
           <span class="text-slate-400 block mb-1 text-label uppercase tracking-wide">Última actualización</span>
@@ -167,76 +265,69 @@
   </div>
 
 <script>
-  const BLYNK_TOKEN = "1aJdfoTpGSMENGDKUFueZt_knMG2f79n";
-  const BLYNK_URL   = "https://blynk.cloud/external/api/get";
-  const INTERVALO   = 5000;
-  const MAX_PUNTOS  = 60;
+  // ===== CONFIGURACIÓN =====
+  const BLYNK_TOKEN    = "1aJdfoTpGSMENGDKUFueZt_knMG2f79n";
+  const BLYNK_URL      = "https://blynk.cloud/external/api/get";
+  const INTERVALO      = 5000;
+  const MAX_PUNTOS     = 60;
+  const TARIFA_KWH     = 800; // COP
 
+  // ⚠️ KEY TEMPORAL — regenerar después de la sustentación
+  const DEEPSEEK_KEY   = "sk-673303137c5f4f27b3eb67971e948c2f";
+  const DEEPSEEK_URL   = "https://api.deepseek.com/v1/chat/completions";
+
+  // Datos del histórico para análisis
+  let historicoPotencia = [];
+  let datosActuales = { I: 0, P: 0, E: 0, C: 0 };
+
+  // ===== GRÁFICA =====
   const ctx = document.getElementById('grafica').getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, 300);
   gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
   gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-
   const ticksMax = window.innerWidth < 640 ? 4 : window.innerWidth < 1024 ? 6 : 10;
 
   const grafica = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Potencia (W)',
-        data: [],
-        borderColor: '#3b82f6',
-        backgroundColor: gradient,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 5
-      }]
-    },
+    data: { labels: [], datasets: [{
+      label: 'Potencia (W)',
+      data: [],
+      borderColor: '#3b82f6',
+      backgroundColor: gradient,
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 5
+    }]},
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: {
-          labels: {
-            color: '#cbd5e1',
-            font: { size: window.innerWidth < 640 ? 11 : 13 }
-          }
-        },
+        legend: { labels: { color: '#cbd5e1', font: { size: window.innerWidth < 640 ? 11 : 13 } } },
         tooltip: {
           backgroundColor: 'rgba(15, 23, 42, 0.95)',
-          titleColor: '#cbd5e1',
-          bodyColor: '#fff',
-          borderColor: '#3b82f6',
-          borderWidth: 1
+          titleColor: '#cbd5e1', bodyColor: '#fff',
+          borderColor: '#3b82f6', borderWidth: 1
         }
       },
       scales: {
         x: {
-          ticks: {
-            color: '#64748b',
-            maxTicksLimit: ticksMax,
-            font: { size: window.innerWidth < 640 ? 9 : 11 }
-          },
+          ticks: { color: '#64748b', maxTicksLimit: ticksMax, font: { size: window.innerWidth < 640 ? 9 : 11 } },
           grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y: {
           beginAtZero: true,
-          ticks: {
-            color: '#64748b',
-            font: { size: window.innerWidth < 640 ? 10 : 12 }
-          },
+          ticks: { color: '#64748b', font: { size: window.innerWidth < 640 ? 10 : 12 } },
           grid: { color: 'rgba(255,255,255,0.05)' }
         }
       }
     }
   });
-
   window.addEventListener('resize', () => grafica.resize());
 
+  // ===== LEER BLYNK =====
   async function leerValor(pin) {
     try {
       const url = `${BLYNK_URL}?token=${BLYNK_TOKEN}&${pin}`;
@@ -252,10 +343,7 @@
 
   async function actualizar() {
     const [I, P, E, C] = await Promise.all([
-      leerValor("V0"),
-      leerValor("V1"),
-      leerValor("V2"),
-      leerValor("V3"),
+      leerValor("V0"), leerValor("V1"), leerValor("V2"), leerValor("V3"),
     ]);
 
     if (P === null) {
@@ -263,6 +351,8 @@
       document.getElementById("statusText").textContent = "Offline";
       return;
     }
+
+    datosActuales = { I, P, E, C };
 
     document.getElementById("potencia").textContent  = P.toFixed(0);
     document.getElementById("corriente").textContent = I.toFixed(2);
@@ -273,22 +363,145 @@
     document.getElementById("statusText").textContent = "ESP32 Online";
 
     const ahora = new Date();
-    document.getElementById("ultimaActualizacion").textContent =
-      ahora.toLocaleTimeString("es-CO");
+    document.getElementById("ultimaActualizacion").textContent = ahora.toLocaleTimeString("es-CO");
 
-    const horaStr = ahora.toLocaleTimeString("es-CO", {
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
+    const horaStr = ahora.toLocaleTimeString("es-CO", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     grafica.data.labels.push(horaStr);
     grafica.data.datasets[0].data.push(P);
+    historicoPotencia.push({ hora: horaStr, P });
 
     if (grafica.data.labels.length > MAX_PUNTOS) {
       grafica.data.labels.shift();
       grafica.data.datasets[0].data.shift();
+      historicoPotencia.shift();
     }
     grafica.update('none');
+
+    actualizarDescripcionesDinamicas();
   }
 
+  // ===== DESCRIPCIONES DINÁMICAS =====
+  function actualizarDescripcionesDinamicas() {
+    const { I, P, E, C } = datosActuales;
+    const cont = document.getElementById("descripcionesDinamicas");
+
+    if (P === 0 && I === 0) {
+      cont.innerHTML = `<p class="text-slate-400 italic">El sensor está en cero. Conecta un electrodoméstico al circuito monitoreado para ver análisis en vivo.</p>`;
+      return;
+    }
+
+    // Equivalencia en electrodomésticos
+    let equivalente = "muy poco consumo (modo standby)";
+    if (P >= 1500) equivalente = "una plancha o secador de pelo encendido";
+    else if (P >= 800) equivalente = "un microondas o tostadora";
+    else if (P >= 300) equivalente = "un computador de escritorio";
+    else if (P >= 100) equivalente = "un televisor o ventilador";
+    else if (P >= 20) equivalente = "una bombilla LED o cargador";
+
+    // Costo proyectado
+    const costoPorHora = (P / 1000) * TARIFA_KWH;
+    const costoPorDia  = costoPorHora * 24;
+    const costoPorMes  = costoPorDia * 30;
+
+    cont.innerHTML = `
+      <p>⚡ <strong class="text-blue-400">${P.toFixed(0)}W</strong> de consumo equivale aproximadamente a tener encendido <strong>${equivalente}</strong>.</p>
+      <p>🔌 La corriente de <strong class="text-green-400">${I.toFixed(2)}A</strong> significa que están pasando ${(I*6.24e18).toExponential(2)} electrones por segundo por el cable monitoreado.</p>
+      <p>💰 A este ritmo, en <strong>1 hora</strong> costaría <strong class="text-purple-400">$${Math.round(costoPorHora).toLocaleString("es-CO")} COP</strong>, en <strong>1 día</strong> serían <strong>$${Math.round(costoPorDia).toLocaleString("es-CO")} COP</strong> y en <strong>1 mes</strong> alcanzaría <strong>$${Math.round(costoPorMes).toLocaleString("es-CO")} COP</strong>.</p>
+      <p>🔋 Llevas acumulados <strong class="text-yellow-400">${E.toFixed(3)} kWh</strong> desde que se encendió el medidor, lo que equivale a tener una bombilla LED de 10W encendida durante <strong>${(E * 100).toFixed(1)} horas</strong>.</p>
+    `;
+  }
+
+  // ===== ANÁLISIS CON DEEPSEEK =====
+  async function analizarConIA() {
+    const btn = document.getElementById("btnAnalizar");
+    const box = document.getElementById("aiResponseBox");
+    const loading = document.getElementById("aiLoading");
+    const content = document.getElementById("aiContent");
+
+    // Validar que haya datos
+    if (datosActuales.P === undefined) {
+      alert("Espera unos segundos a que lleguen los primeros datos del ESP32.");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Analizando...";
+    box.classList.remove("hidden");
+    loading.classList.remove("hidden");
+    loading.classList.add("flex");
+    content.textContent = "";
+
+    // Construir contexto rico para la IA
+    const { I, P, E, C } = datosActuales;
+    const historico = historicoPotencia.slice(-30).map(h => `${h.hora}: ${h.P.toFixed(0)}W`).join(", ");
+    const promedio = historicoPotencia.length > 0
+      ? (historicoPotencia.reduce((a, b) => a + b.P, 0) / historicoPotencia.length).toFixed(0)
+      : 0;
+    const pico = historicoPotencia.length > 0
+      ? Math.max(...historicoPotencia.map(h => h.P)).toFixed(0)
+      : 0;
+
+    const prompt = `Eres un asistente experto en consumo energético hablando con un usuario común colombiano. Analiza estos datos de su medidor IoT y dale una respuesta CASUAL, AMIGABLE y EDUCATIVA en español. NO uses jerga técnica innecesaria. Máximo 4 párrafos cortos. Usa emojis naturalmente. No saludes, ve directo al análisis.
+
+DATOS ACTUALES:
+- Corriente: ${I.toFixed(2)} Amperios
+- Potencia instantánea: ${P.toFixed(0)} Watts
+- Energía acumulada: ${E.toFixed(3)} kWh
+- Costo acumulado: $${Math.round(C)} COP
+
+CONTEXTO HISTÓRICO (últimos 30 puntos, uno cada 5 segundos):
+- Potencia promedio: ${promedio}W
+- Pico máximo: ${pico}W
+- Mediciones recientes: ${historico}
+
+TARIFA ELÉCTRICA EN BOGOTÁ:
+- Enel-Codensa cobra aproximadamente $800 COP por kWh
+- El consumo promedio de una casa colombiana es 150-200 kWh/mes (~$120,000-$160,000 COP)
+
+INSTRUCCIONES PARA TU RESPUESTA:
+1. Empieza con "📊" y un análisis de qué está consumiendo (compara con electrodomésticos típicos)
+2. Comenta si el consumo es alto, normal o bajo
+3. Proyecta cuánto costaría si mantuviera este ritmo en 24h, 1 semana y 1 mes
+4. Da UN consejo práctico de ahorro relevante a lo que ve
+
+Tono: amigable, como un amigo experto explicándole a alguien que no sabe de electricidad. Sé breve pero útil.`;
+
+    try {
+      const res = await fetch(DEEPSEEK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + DEEPSEEK_KEY
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          max_tokens: 600
+        })
+      });
+
+      if (!res.ok) throw new Error("Error " + res.status);
+
+      const data = await res.json();
+      const respuesta = data.choices[0].message.content;
+
+      loading.classList.add("hidden");
+      loading.classList.remove("flex");
+      content.textContent = respuesta;
+
+    } catch (err) {
+      loading.classList.add("hidden");
+      loading.classList.remove("flex");
+      content.innerHTML = `<span class="text-red-400">⚠️ Error consultando la IA: ${err.message}</span>`;
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🧠 Analizar consumo";
+    }
+  }
+
+  // Primera lectura
   actualizar();
   setInterval(actualizar, INTERVALO);
 
