@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0f172a" />
+<title>Medidor de Consumo Energético | Michael Huertas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    min-height: 100vh;
+    min-height: 100dvh;
+    color: white;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glow-blue   { box-shadow: 0 0 20px rgba(59, 130, 246, 0.25); }
+  .glow-green  { box-shadow: 0 0 20px rgba(34, 197, 94, 0.25); }
+  .glow-yellow { box-shadow: 0 0 20px rgba(234, 179, 8, 0.25); }
+  .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25); }
+
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(0.9); }
+  }
+
+  /* Texto que escala con el viewport */
+  .text-value     { font-size: clamp(1.75rem, 7vw, 2.75rem); line-height: 1; font-weight: 700; }
+  .text-unit      { font-size: clamp(0.875rem, 3vw, 1.125rem); }
+  .text-label     { font-size: clamp(0.7rem, 2.5vw, 0.8rem); }
+  .text-title     { font-size: clamp(1.5rem, 5.5vw, 2.5rem); }
+  .text-subtitle  { font-size: clamp(0.75rem, 3vw, 0.95rem); }
+
+  @media (hover: hover) {
+    .card-hover { transition: transform 0.2s ease; }
+    .card-hover:hover { transform: translateY(-2px); }
+  }
+
+  .chart-container { height: 220px; }
+  @media (min-width: 640px) { .chart-container { height: 280px; } }
+  @media (min-width: 1024px) { .chart-container { height: 340px; } }
+</style>
+</head>
+<body>
+  <div class="max-w-7xl mx-auto px-3 py-4 sm:p-6 md:p-8">
+
+    <!-- HEADER -->
+    <header class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-5 sm:mb-8">
+      <div class="min-w-0">
+        <h1 class="text-title font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          Medidor IoT
+        </h1>
+        <p class="text-slate-400 text-subtitle mt-1">
+          Monitoreo de energía en tiempo real
+        </p>
+      </div>
+      <div class="glass rounded-full px-3 py-2 flex items-center gap-2 self-start sm:self-auto">
+        <div id="statusDot" class="pulse-dot bg-yellow-400"></div>
+        <span id="statusText" class="text-xs sm:text-sm font-medium whitespace-nowrap">Conectando...</span>
+      </div>
+    </header>
+
+    <!-- CARDS -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-8">
+
+      <div class="glass glow-blue card-hover rounded-2xl p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <span class="text-slate-400 text-label uppercase tracking-wide">Potencia</span>
+          <span class="text-lg sm:text-xl opacity-80">⚡</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span id="potencia" class="text-value text-blue-400">0</span>
+          <span class="text-slate-400 text-unit">W</span>
+        </div>
+      </div>
+
+      <div class="glass glow-green card-hover rounded-2xl p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <span class="text-slate-400 text-label uppercase tracking-wide">Corriente</span>
+          <span class="text-lg sm:text-xl opacity-80">🔌</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span id="corriente" class="text-value text-green-400">0.00</span>
+          <span class="text-slate-400 text-unit">A</span>
+        </div>
+      </div>
+
+      <div class="glass glow-yellow card-hover rounded-2xl p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <span class="text-slate-400 text-label uppercase tracking-wide">Energía</span>
+          <span class="text-lg sm:text-xl opacity-80">🔋</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span id="energia" class="text-value text-yellow-400">0.000</span>
+          <span class="text-slate-400 text-unit">kWh</span>
+        </div>
+      </div>
+
+      <div class="glass glow-purple card-hover rounded-2xl p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <span class="text-slate-400 text-label uppercase tracking-wide">Costo</span>
+          <span class="text-lg sm:text-xl opacity-80">💰</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-slate-400 text-unit">$</span>
+          <span id="costo" class="text-value text-purple-400">0</span>
+          <span class="text-slate-400 text-unit ml-0.5">COP</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRÁFICA -->
+    <div class="glass rounded-2xl p-4 sm:p-6 mb-5 sm:mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-1">
+        <h2 class="text-base sm:text-xl font-semibold">Histórico de Potencia</h2>
+        <span class="text-xs text-slate-400">Últimos 60 puntos · cada 5s</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="grafica"></canvas>
+      </div>
+    </div>
+
+    <!-- INFO FOOTER -->
+    <div class="glass rounded-2xl p-4 sm:p-6">
+      <h3 class="text-base sm:text-lg font-semibold mb-3">Información del Proyecto</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm text-slate-300">
+        <div>
+          <span class="text-slate-400 block mb-1 text-label uppercase tracking-wide">Hardware</span>
+          <span>ESP32 + SCT-013-000</span>
+        </div>
+        <div>
+          <span class="text-slate-400 block mb-1 text-label uppercase tracking-wide">Tarifa</span>
+          <span id="tarifa">$800 COP/kWh</span>
+        </div>
+        <div>
+          <span class="text-slate-400 block mb-1 text-label uppercase tracking-wide">Última actualización</span>
+          <span id="ultimaActualizacion">--</span>
+        </div>
+      </div>
+      <p class="text-[10px] sm:text-xs text-slate-500 mt-4 text-center">
+        Proyecto IoT · Michael Huertas · UCOMPENSAR
+      </p>
+    </div>
+
+  </div>
+
+<script>
+  const BLYNK_TOKEN = "1aJdfoTpGSMENGDKUFueZt_knMG2f79n";
+  const BLYNK_URL   = "https://blynk.cloud/external/api/get";
+  const INTERVALO   = 5000;
+  const MAX_PUNTOS  = 60;
+
+  const ctx = document.getElementById('grafica').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+  gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+  const ticksMax = window.innerWidth < 640 ? 4 : window.innerWidth < 1024 ? 6 : 10;
+
+  const grafica = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Potencia (W)',
+        data: [],
+        borderColor: '#3b82f6',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#cbd5e1',
+            font: { size: window.innerWidth < 640 ? 11 : 13 }
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          titleColor: '#cbd5e1',
+          bodyColor: '#fff',
+          borderColor: '#3b82f6',
+          borderWidth: 1
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#64748b',
+            maxTicksLimit: ticksMax,
+            font: { size: window.innerWidth < 640 ? 9 : 11 }
+          },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#64748b',
+            font: { size: window.innerWidth < 640 ? 10 : 12 }
+          },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        }
+      }
+    }
+  });
+
+  window.addEventListener('resize', () => grafica.resize());
+
+  async function leerValor(pin) {
+    try {
+      const url = `${BLYNK_URL}?token=${BLYNK_TOKEN}&${pin}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Error " + res.status);
+      const txt = await res.text();
+      return parseFloat(txt);
+    } catch (err) {
+      console.error(`Error leyendo ${pin}:`, err);
+      return null;
+    }
+  }
+
+  async function actualizar() {
+    const [I, P, E, C] = await Promise.all([
+      leerValor("V0"),
+      leerValor("V1"),
+      leerValor("V2"),
+      leerValor("V3"),
+    ]);
+
+    if (P === null) {
+      document.getElementById("statusDot").className = "pulse-dot bg-red-500";
+      document.getElementById("statusText").textContent = "Offline";
+      return;
+    }
+
+    document.getElementById("potencia").textContent  = P.toFixed(0);
+    document.getElementById("corriente").textContent = I.toFixed(2);
+    document.getElementById("energia").textContent   = E.toFixed(3);
+    document.getElementById("costo").textContent     = Math.round(C).toLocaleString("es-CO");
+
+    document.getElementById("statusDot").className = "pulse-dot bg-green-400";
+    document.getElementById("statusText").textContent = "ESP32 Online";
+
+    const ahora = new Date();
+    document.getElementById("ultimaActualizacion").textContent =
+      ahora.toLocaleTimeString("es-CO");
+
+    const horaStr = ahora.toLocaleTimeString("es-CO", {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    grafica.data.labels.push(horaStr);
+    grafica.data.datasets[0].data.push(P);
+
+    if (grafica.data.labels.length > MAX_PUNTOS) {
+      grafica.data.labels.shift();
+      grafica.data.datasets[0].data.shift();
+    }
+    grafica.update('none');
+  }
+
+  actualizar();
+  setInterval(actualizar, INTERVALO);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) actualizar();
+  });
+</script>
+</body>
+</html>
